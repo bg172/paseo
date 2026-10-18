@@ -1535,7 +1535,7 @@ export class AgentManager {
   reloadAgentSession(
     agentId: string,
     overrides?: Partial<AgentSessionConfig>,
-    options?: { rehydrateFromDisk?: boolean },
+    options?: { rehydrateFromDisk?: boolean; freshProviderSession?: boolean },
   ): Promise<ManagedAgent> {
     return this.trackAgentRegistrationOperation(
       this.runLifecycleMutation(agentId, () =>
@@ -1547,7 +1547,7 @@ export class AgentManager {
   private async reloadAgentSessionInternal(
     agentId: string,
     overrides?: Partial<AgentSessionConfig>,
-    options?: { rehydrateFromDisk?: boolean },
+    options?: { rehydrateFromDisk?: boolean; freshProviderSession?: boolean },
   ): Promise<ManagedAgent> {
     this.assertAcceptingAgentRegistrations();
     let existing = this.requireSessionAgent(agentId);
@@ -1555,12 +1555,15 @@ export class AgentManager {
       await this.cancelAgentRunBefore(agentId, "reload");
       existing = this.requireSessionAgent(agentId);
     }
-    const rehydrateFromDisk = options?.rehydrateFromDisk ?? false;
+    const rehydrateFromDisk = options?.rehydrateFromDisk ?? options?.freshProviderSession ?? false;
     const preservedHistoryPrimed = existing.historyPrimed;
     const preservedLastUsage = existing.lastUsage;
     const preservedLastError = existing.lastError;
     const preservedAttention = existing.attention;
-    const handle = existing.persistence;
+    // Voice mode (#7212): voice-enable must mint a fresh provider session.
+    // A reload otherwise resumes the pre-voice session, whose cached tool
+    // list never contains speak (the provider never re-lists post-voice).
+    const handle = options?.freshProviderSession ? null : existing.persistence;
     const provider = handle?.provider ?? existing.provider;
     const client = this.requireClient(provider);
     const refreshConfig = {
