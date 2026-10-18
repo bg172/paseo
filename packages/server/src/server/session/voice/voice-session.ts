@@ -993,6 +993,30 @@ export class VoiceSession {
       this.setPhase("idle");
       this.clearSpeechInProgress("empty transcription");
       await this.flushPendingAudioSegments("empty transcription");
+      if (this.isVoiceMode) {
+        // The user spoke but STT returned nothing (stall/timeout). Say so out
+        // loud instead of going silent — silence reads as "voice is broken".
+        const prompt = "I didn't catch that. Please say it again.";
+        this.emit({
+          type: "activity_log",
+          payload: {
+            id: uuidv4(),
+            timestamp: new Date(),
+            type: "system",
+            content: prompt,
+          },
+        });
+        try {
+          await this.ttsManager.generateAndWaitForPlayback(
+            prompt,
+            (msg) => this.emit(msg),
+            this.abortController.signal,
+            true,
+          );
+        } catch (error) {
+          this.sessionLogger.warn({ err: error }, "Voice repeat-prompt playback failed");
+        }
+      }
       return;
     }
 
