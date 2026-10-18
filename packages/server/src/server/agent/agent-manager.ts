@@ -1613,12 +1613,7 @@ export class AgentManager {
       this.assertAcceptingAgentRegistrations();
 
       if (rehydrateFromDisk) {
-        // Wipe the in-memory timeline so registerSession mints a new epoch and
-        // hydrateTimelineFromProvider re-streams the freshly read provider history.
-        this.timelineStore.delete(agentId);
-        for (const event of this.providerSubagents.deleteParent(agentId)) {
-          this.dispatch({ type: "provider_subagent", event });
-        }
+        this.clearTimelineForRehydrate(agentId);
       }
 
       // Preserve existing labels and timeline during reload.
@@ -1637,25 +1632,7 @@ export class AgentManager {
         restoring: true,
       });
       if (rehydrateFromDisk) {
-        // The timeline was wiped above so the re-stream starts clean; rebuild
-        // the visible history from the resumed provider session, otherwise
-        // voice-enable would blank the client's history view (#7212).
-        // A re-stream failure must not fail the reload itself — the agent
-        // stays usable with an empty view that repopulates on later turns.
-        try {
-          await this.hydrateTimelineFromProvider(agentId, {
-            force: true,
-            broadcast: true,
-            broadcastTimeline: false,
-          });
-          this.dispatch({
-            type: "timeline_replacement",
-            agentId,
-            epoch: this.timelineStore.getEpoch(agentId),
-          });
-        } catch (error) {
-          this.logger.warn({ err: error, agentId }, "agent.reload.timeline-rehydrate.failed");
-        }
+        await this.rehydrateTimelineAfterReload(agentId);
       }
       return registered;
     } catch (error) {
@@ -1678,6 +1655,39 @@ export class AgentManager {
           await this.closeUnregisteredSession(session);
         }
       }
+    }
+  }
+
+  private clearTimelineForRehydrate(agentId: string): void {
+    // Wipe the in-memory timeline so registerSession mints a new epoch and
+    // hydrateTimelineFromProvider re-streams the freshly read provider history.
+    this.timelineStore.delete(agentId);
+    for (const event of this.providerSubagents.deleteParent(agentId)) {
+      this.dispatch({ type: "provider_subagent", event });
+    }
+  }
+
+  private async rehydrateTimelineAfterReload(agentId: string): Promise<void> {
+    // The timeline was wiped above so the re-stream starts clean; rebuild
+    // the visible history from the resumed provider session, otherwise
+    // voice-enable would blank the client's history view (#7212).
+    // Broadcast rows (not just replacement): refresh_agent_request hydrates
+    // again without force, which early-returns once primed — so live
+    // followers (e.g. CLI logs --follow) would miss the replay otherwise.
+    // A re-stream failure must not fail the reload itself — the agent
+    // stays usable with an empty view that repopulates on later turns.
+    try {
+      await this.hydrateTimelineFromProvider(agentId, {
+        force: true,
+        broadcast: true,
+      });
+      this.dispatch({
+        type: "timeline_replacement",
+        agentId,
+        epoch: this.timelineStore.getEpoch(agentId),
+      });
+    } catch (rehydrateError) {
+      this.logger.warn({ err: rehydrateError, agentId }, "agent.reload.timeline-rehydrate.failed");
     }
   }
 

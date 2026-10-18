@@ -11895,8 +11895,8 @@ test.each([false, true])(
 
 test("reload with rehydrateFromDisk resumes the provider session, preserving history (#7212)", async () => {
   const workdir = mkdtempSync(join(tmpdir(), "agent-manager-reload-resume-"));
-  const logger = createTestLogger();
-  const storage = new AgentStorage(join(workdir, "agents"), logger);
+  const testLogger = createTestLogger();
+  const storage = new AgentStorage(join(workdir, "agents"), testLogger);
   class ResumeCountingClient extends TestAgentClient {
     created = 0;
     resumed = 0;
@@ -11914,7 +11914,11 @@ test("reload with rehydrateFromDisk resumes the provider session, preserving his
     }
   }
   const client = new ResumeCountingClient();
-  const manager = new AgentManager({ clients: { codex: client }, registry: storage, logger });
+  const manager = new AgentManager({
+    clients: { codex: client },
+    registry: storage,
+    logger: testLogger,
+  });
   try {
     const agent = await manager.createAgent({ provider: "codex", cwd: workdir }, undefined, {
       workspaceId: undefined,
