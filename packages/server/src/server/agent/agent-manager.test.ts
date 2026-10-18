@@ -11893,11 +11893,11 @@ test.each([false, true])(
   },
 );
 
-test("reload with freshProviderSession mints a new provider session instead of resuming (#7212)", async () => {
-  const workdir = mkdtempSync(join(tmpdir(), "agent-manager-reload-fresh-"));
+test("reload with rehydrateFromDisk resumes the provider session, preserving history (#7212)", async () => {
+  const workdir = mkdtempSync(join(tmpdir(), "agent-manager-reload-resume-"));
   const logger = createTestLogger();
   const storage = new AgentStorage(join(workdir, "agents"), logger);
-  class FreshCountingClient extends TestAgentClient {
+  class ResumeCountingClient extends TestAgentClient {
     created = 0;
     resumed = 0;
     override async createSession(config: AgentSessionConfig): Promise<AgentSession> {
@@ -11913,7 +11913,7 @@ test("reload with freshProviderSession mints a new provider session instead of r
       return super.resumeSession(handle, config, launchContext);
     }
   }
-  const client = new FreshCountingClient();
+  const client = new ResumeCountingClient();
   const manager = new AgentManager({ clients: { codex: client }, registry: storage, logger });
   try {
     const agent = await manager.createAgent({ provider: "codex", cwd: workdir }, undefined, {
@@ -11922,12 +11922,11 @@ test("reload with freshProviderSession mints a new provider session instead of r
     expect(client.created).toBe(1);
     await manager.reloadAgentSession(agent.id, undefined, {
       rehydrateFromDisk: true,
-      freshProviderSession: true,
     });
-    expect(client.resumed).toBe(0);
-    expect(client.created).toBe(2);
-    await manager.reloadAgentSession(agent.id);
+    expect(client.created).toBe(1);
     expect(client.resumed).toBe(1);
+    await manager.reloadAgentSession(agent.id);
+    expect(client.resumed).toBe(2);
   } finally {
     await manager.flush().catch(() => undefined);
     rmSync(workdir, { recursive: true, force: true });

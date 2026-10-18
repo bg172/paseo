@@ -328,14 +328,14 @@ describe("VoiceSession streaming transcription", () => {
   });
 });
 
-test("voice enable reloads with a fresh provider session (#7212)", async () => {
+test("voice enable reloads with resume + rehydrate, preserving history (#7212)", async () => {
   const { voiceSession, host } = createVoiceSession();
   const reloadOptions: unknown[] = [];
   const innerReload = host.reloadAgentSession;
   host.reloadAgentSession = (async (
     agentId: string,
     overrides: Partial<AgentSessionConfig>,
-    options?: { rehydrateFromDisk?: boolean; freshProviderSession?: boolean },
+    options?: { rehydrateFromDisk?: boolean },
   ) => {
     reloadOptions.push(options);
     return innerReload(agentId, overrides);
@@ -345,8 +345,8 @@ test("voice enable reloads with a fresh provider session (#7212)", async () => {
     expect(reloadOptions).toHaveLength(1);
     expect(reloadOptions[0]).toMatchObject({
       rehydrateFromDisk: true,
-      freshProviderSession: true,
     });
+    expect(reloadOptions[0]).not.toHaveProperty("freshProviderSession");
   } finally {
     await voiceSession.cleanup();
   }
