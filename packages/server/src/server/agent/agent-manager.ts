@@ -1623,7 +1623,7 @@ export class AgentManager {
 
       // Preserve existing labels and timeline during reload.
       handedToRegistration = true;
-      return this.registerSession(session, storedConfig, agentId, {
+      const registered = await this.registerSession(session, storedConfig, agentId, {
         labels: existing.labels,
         workspaceId: existing.workspaceId,
         owner: existing.owner,
@@ -1636,6 +1636,28 @@ export class AgentManager {
         attention: preservedAttention,
         restoring: true,
       });
+      if (rehydrateFromDisk) {
+        // The timeline was wiped above so the re-stream starts clean; rebuild
+        // the visible history from the resumed provider session, otherwise
+        // voice-enable would blank the client's history view (#7212).
+        // A re-stream failure must not fail the reload itself — the agent
+        // stays usable with an empty view that repopulates on later turns.
+        try {
+          await this.hydrateTimelineFromProvider(agentId, {
+            force: true,
+            broadcast: true,
+            broadcastTimeline: false,
+          });
+          this.dispatch({
+            type: "timeline_replacement",
+            agentId,
+            epoch: this.timelineStore.getEpoch(agentId),
+          });
+        } catch (error) {
+          this.logger.warn({ err: error, agentId }, "agent.reload.timeline-rehydrate.failed");
+        }
+      }
+      return registered;
     } catch (error) {
       if (closedExisting) {
         this.emitClosedAgent(closedExisting, { persist: false });
