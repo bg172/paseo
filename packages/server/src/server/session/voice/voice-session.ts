@@ -125,6 +125,7 @@ export interface VoiceSessionHost {
   reloadAgentSession(
     agentId: string,
     overrides: Partial<AgentSessionConfig>,
+    options?: { rehydrateFromDisk?: boolean },
   ): Promise<ManagedAgent>;
   sendSpokenInput(agentId: string, text: string): Promise<void>;
   interruptAgentIfRunning(agentId: string): Promise<void>;
@@ -513,7 +514,11 @@ export class VoiceSession {
         { agentId, elapsedMs: Date.now() - startedAt },
         "enableVoiceModeForAgent.reloadAgentSession.start",
       );
-      const refreshed = await this.host.reloadAgentSession(agentId, refreshOverrides);
+      const refreshed = await this.host.reloadAgentSession(agentId, refreshOverrides, {
+        // Voice mode (#7212): resume the existing provider session (history
+        // preserved) and rehydrate so the rebuilt tool list includes speak.
+        rehydrateFromDisk: true,
+      });
       this.sessionLogger.info(
         { agentId, refreshedAgentId: refreshed.id, elapsedMs: Date.now() - startedAt },
         "enableVoiceModeForAgent.reloadAgentSession.done",
