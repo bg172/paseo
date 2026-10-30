@@ -1092,14 +1092,23 @@ export class VoiceSession {
       const abortSignal = signal
         ? AbortSignal.any([signal, this.abortController.signal])
         : this.abortController.signal;
-      await this.ttsManager.generateAndWaitForPlayback(
+      // Throws when zero audio was emitted or the client never confirmed
+      // playback: the speak tool must fail loudly instead of reporting
+      // playback success when nothing was heard.
+      const playback = await this.ttsManager.generateAndWaitForPlayback(
         text,
         (msg) => this.emit(msg),
         abortSignal,
         true,
       );
       this.sessionLogger.info(
-        { agentId, textLength: text.length },
+        {
+          agentId,
+          textLength: text.length,
+          segmentsEmitted: playback.segmentsEmitted,
+          segmentsConfirmed: playback.segmentsConfirmed,
+          aborted: playback.aborted,
+        },
         "Voice speak tool call finished playback",
       );
       this.emit({
