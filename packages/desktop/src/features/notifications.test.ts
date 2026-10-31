@@ -102,9 +102,7 @@ describe("linux notification sound", () => {
   });
 
   it("omits icon and body flags when absent", () => {
-    expect(
-      buildNotifySendArgs({ appName: "Paseo", iconPath: null, title: "Hi" }),
-    ).toEqual([
+    expect(buildNotifySendArgs({ appName: "Paseo", iconPath: null, title: "Hi" })).toEqual([
       "-a",
       "Paseo",
       "-u",

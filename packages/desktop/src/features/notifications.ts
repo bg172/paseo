@@ -101,10 +101,7 @@ export interface NotifySendProcess {
   stdout: { on(event: string, listener: (chunk: unknown) => void): void } | null;
 }
 
-export type NotifySendSpawner = (
-  command: string,
-  args: string[],
-) => NotifySendProcess;
+export type NotifySendSpawner = (command: string, args: string[]) => NotifySendProcess;
 
 const defaultNotifySendSpawner: NotifySendSpawner = (command, args) =>
   spawn(command, args, { stdio: ["ignore", "pipe", "ignore"] }) as unknown as NotifySendProcess;
